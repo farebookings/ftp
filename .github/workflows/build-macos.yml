@@ -1,0 +1,88 @@
+name: Build macOS Executable - FTP Client
+
+on:
+  workflow_dispatch:  # Permite ejecución manual
+  push:
+    branches: [ main, master ]
+  release:
+    types: [published]  # También se puede ejecutar al crear un release
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    # Estrategia para construir con diferentes versiones de Python (opcional)
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+    
+    steps:
+      # 1. Obtener el código
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      # 2. Configurar Python
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+      
+      # 3. Instalar dependencias
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          fi
+      
+      # 4. Verificar que todo está instalado (debug)
+      - name: Verify installations
+        run: |
+          python --version
+          pip list
+          # Verificar que tkinter funciona (importante para macOS)
+          python -c "import tkinter; print('✅ Tkinter OK')"
+          python -c "from tkinterdnd2 import TkinterDnD; print('✅ TkinterDnD OK')"
+      
+      # 5. Generar el ejecutable con PyInstaller
+      - name: Build with PyInstaller
+        run: |
+          pyinstaller --onefile \
+            --name "FTPClient_Fantuber" \
+            --windowed \
+            --clean \
+            --add-data "README.md:." \
+            --icon "NONE" \
+            --osx-bundle-identifier "com.fantuber.ftpclient" \
+            main.py
+      
+      # 6. Crear archivo ZIP con el ejecutable y settings.ini
+      - name: Prepare artifacts
+        run: |
+          mkdir -p dist_package
+          cp dist/FTPClient_Fantuber dist_package/
+          cp settings.ini dist_package/ 2>/dev/null || echo "⚠️ settings.ini no encontrado"
+          cp README.md dist_package/ 2>/dev/null || echo "⚠️ README.md no encontrado"
+          cd dist_package && zip -r "../FTPClient_Fantuber_macOS_${{ matrix.python-verison }}.zip" *
+      
+      # 7. Subir artifacts
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: FTPClient_Fantuber_macOS_${{ matrix.python-version }}
+          path: |
+            FTPClient_Fantuber_macOS_*.zip
+            dist/FTPClient_Fantuber
+      
+      # 8. (Opcional) Subir a release si es un release
+      - name: Upload to Release
+        if: github.event_name == 'release'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./FTPClient_Fantuber_macOS_${{ matrix.python-version }}.zip
+          asset_name: FTPClient_Fantuber_macOS_${{ matrix.python-version }}.zip
+          asset_content_type: application/zip
