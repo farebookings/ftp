@@ -58,3 +58,12 @@ pip install -r requirements.txt
 
 # Ejecutar
 python main.py
+
+📦 Descarga
+
+[![Download](https://img.shields.io/github/v/release/farebookings/ftp?label=Descargar%20última%20versión)](https://github.com/farebookings/ftp/releases/latest)
+
+**Descarga directa sin cuenta de GitHub:**
+1. Ve a [Releases](https://github.com/farebookings/ftp/releases)
+2. Descarga el archivo `FTPClient_Fantuber_vX.X.X.zip`
+3. Descomprime y ejecuta
