@@ -32,11 +32,13 @@ Aplicación de escritorio para gestión de archivos FTP con interfaz gráfica in
 - **Arquitectura**: Intel o Apple Silicon (M1/M2/M3)
 - **Espacio**: 50 MB libres
 
+### Opción 1: Descargar ejecutable (recomendado)
+
 ## 🚀 Instalación
 
 ### Opción 1: Descargar ejecutable (recomendado)
 
-1. Descarga el ZIP desde [Actions](https://github.com/farebookings/ftp/actions)
+1. Descarga el ZIP desde https://github.com/farebookings/ftp/releases/download/v1.0.0/FTPClient_Fantuber_macOS_Python3.11.zip
 2. Descomprime el archivo
 3. Abre la carpeta `FTPClient_Package`
 4. Haz doble clic en `FTPClient_Fantuber` para ejecutar
@@ -54,10 +56,3 @@ pip install -r requirements.txt
 # Ejecutar
 python main.py
 
-### Opción 3: Descarga directa del ejecutable
-
-📦 Descarga
-
-1. Ve a [Releases](https://github.com/farebookings/ftp/releases)
-2. Descarga el archivo `FTPClient_Fantuber_vX.X.X.zip`
-3. Descomprime y ejecuta
