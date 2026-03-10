@@ -24,12 +24,7 @@ Aplicación de escritorio para gestión de archivos FTP con interfaz gráfica in
 [![Download](https://img.shields.io/badge/Download-Última%20versión-brightgreen)](https://github.com/farebookings/ftp/actions/workflows/build-macos.yml)
 
 **Instrucciones de descarga:**
-1. Haz clic en el badge de "Download" de arriba
-2. En la página de Actions, selecciona la última ejecución exitosa (✓)
-3. Baja hasta "Artifacts" y descarga `FTPClient_Fantuber_macOS_Python3.11.zip`
 
-### Descarga directa
-También puedes descargar la última versión desde la [página de Actions](https://github.com/farebookings/ftp/actions).
 
 ## 🖥️ Requisitos del sistema
 
@@ -59,11 +54,10 @@ pip install -r requirements.txt
 # Ejecutar
 python main.py
 
+### Opción 3: Descarga directa del ejecutable
+
 📦 Descarga
 
-[![Download](https://img.shields.io/github/v/release/farebookings/ftp?label=Descargar%20última%20versión)](https://github.com/farebookings/ftp/releases/latest)
-
-**Descarga directa sin cuenta de GitHub:**
 1. Ve a [Releases](https://github.com/farebookings/ftp/releases)
 2. Descarga el archivo `FTPClient_Fantuber_vX.X.X.zip`
 3. Descomprime y ejecuta
