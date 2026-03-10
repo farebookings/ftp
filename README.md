@@ -3,10 +3,6 @@
 Aplicación de escritorio para gestión de archivos FTP con interfaz gráfica intuitiva y soporte para arrastrar y soltar.
 
 
-## 📸 Capturas de pantalla
-
-*(Próximamente*
-
 ## ✨ Características
 
 - ✅ **Conexión FTP** - Conecta a cualquier servidor FTP
