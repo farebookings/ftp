@@ -17,7 +17,7 @@ Aplicación de escritorio para gestión de archivos FTP con interfaz gráfica in
 ## 📦 Descarga
 
 ### Última versión
-[![Download](https://img.shields.io/badge/Download-Última%20versión-brightgreen)](https://github.com/farebookings/ftp/releases/download/v1.0.0/FTPClient_Fantuber_macOS_Python3.11.zip)
+[![Download](https://img.shields.io/badge/Download-Última%20versión-brightgreen)](https://github.com/farebookings/ftp/releases/tag/v1.1.0)
 
 **Instrucciones de descarga:**
 
