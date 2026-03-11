@@ -15,17 +15,14 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            artifact_name: FTPClient_Fantuber_macOS
             asset_name: FTPClient_Fantuber_macOS
             separator: ":"
             extension: ""
           - os: windows-latest
-            artifact_name: FTPClient_Fantuber_Windows.exe
             asset_name: FTPClient_Fantuber_Windows
             separator: ";"
             extension: ".exe"
           - os: ubuntu-latest
-            artifact_name: FTPClient_Fantuber_Linux
             asset_name: FTPClient_Fantuber_Linux
             separator: ":"
             extension: ""
@@ -43,7 +40,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-tk
+          sudo apt-get install -y python3-tk x11-utils
       
       - name: Install Python dependencies
         run: |
@@ -51,14 +48,8 @@ jobs:
           pip install pyinstaller
           pip install tkinterdnd2
       
-      - name: Debug - Check files
-        run: |
-          echo "Archivos en el directorio:"
-          ls -la
-          echo "Verificando main.py:"
-          if [ -f "main.py" ]; then echo "✅ main.py existe"; else echo "❌ main.py NO existe"; fi
-      
-      - name: Build with PyInstaller
+      - name: Build with PyInstaller (macOS & Linux)
+        if: matrix.os != 'windows-latest'
         run: |
           pyinstaller --onefile \
             --windowed \
@@ -66,20 +57,48 @@ jobs:
             --clean \
             --add-data "README.md${{ matrix.separator }}." \
             main.py
-        shell: ${{ matrix.os == 'windows-latest' && 'powershell' || 'bash' }}
+        shell: bash
       
-      - name: Prepare package (Unix)
-        if: matrix.os != 'windows-latest'
+      - name: Build with PyInstaller (Windows)
+        if: matrix.os == 'windows-latest'
         run: |
-          mkdir -p FTPClient_Package
+          pyinstaller --onefile `
+            --windowed `
+            --name "FTPClient_Fantuber${{ matrix.extension }}" `
+            --clean `
+            --add-data "README.md${{ matrix.separator }}." `
+            main.py
+        shell: powershell
+      
+      - name: Verify executable exists
+        run: |
           if [ -f "dist/FTPClient_Fantuber${{ matrix.extension }}" ]; then
-            cp dist/FTPClient_Fantuber${{ matrix.extension }} FTPClient_Package/
-            echo "✅ Ejecutable copiado"
+            echo "✅ Ejecutable generado correctamente"
           else
-            echo "❌ Error: No se encontró el ejecutable"
+            echo "❌ Error: No se generó el ejecutable"
             ls -la dist/
             exit 1
           fi
+        shell: bash
+        if: matrix.os != 'windows-latest'
+      
+      - name: Verify executable exists (Windows)
+        run: |
+          if (Test-Path "dist/FTPClient_Fantuber${{ matrix.extension }}") {
+            Write-Host "✅ Ejecutable generado correctamente"
+          } else {
+            Write-Host "❌ Error: No se generó el ejecutable"
+            Get-ChildItem dist/
+            exit 1
+          }
+        shell: powershell
+        if: matrix.os == 'windows-latest'
+      
+      - name: Prepare package (macOS & Linux)
+        if: matrix.os != 'windows-latest'
+        run: |
+          mkdir -p FTPClient_Package
+          cp dist/FTPClient_Fantuber${{ matrix.extension }} FTPClient_Package/
           cp README.md FTPClient_Package/ 2>/dev/null || echo "No README"
           cd FTPClient_Package
           zip -r ../${{ matrix.asset_name }}.zip *
@@ -89,14 +108,7 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: |
           mkdir FTPClient_Package -Force
-          if (Test-Path "dist/FTPClient_Fantuber${{ matrix.extension }}") {
-            Copy-Item "dist/FTPClient_Fantuber${{ matrix.extension }}" -Destination "FTPClient_Package/"
-            Write-Host "✅ Ejecutable copiado"
-          } else {
-            Write-Host "❌ Error: No se encontró el ejecutable"
-            Get-ChildItem dist/
-            exit 1
-          }
+          Copy-Item "dist/FTPClient_Fantuber${{ matrix.extension }}" -Destination "FTPClient_Package/"
           if (Test-Path "README.md") { Copy-Item "README.md" -Destination "FTPClient_Package/" }
           Compress-Archive -Path "FTPClient_Package/*" -DestinationPath "${{ matrix.asset_name }}.zip" -Force
         shell: powershell
