@@ -1,0 +1,63 @@
+name: Build Windows Executable
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest  # ¡Importante! Usa Windows runner
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          architecture: 'x64'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          pip install tkinterdnd2
+      
+      - name: Build with PyInstaller
+        run: |
+          pyinstaller --onefile `
+            --windowed `
+            --name "FTPClient_Fantuber" `
+            --clean `
+            --add-data "README.md;." `
+            main.py
+        shell: powershell  # Windows usa PowerShell
+      
+      - name: Prepare package
+        run: |
+          mkdir FTPClient_Package -Force
+          Copy-Item "dist/FTPClient_Fantuber.exe" -Destination "FTPClient_Package/"
+          if (Test-Path "README.md") { Copy-Item "README.md" -Destination "FTPClient_Package/" }
+          
+          # Crear archivo ZIP
+          Compress-Archive -Path "FTPClient_Package/*" -DestinationPath "FTPClient_Fantuber_Windows.zip" -Force
+        shell: powershell
+      
+      # Subir como artifact
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FTPClient_Fantuber_Windows
+          path: "FTPClient_Fantuber_Windows.zip"
+      
+      # Subir a Releases si es un tag
+      - name: Upload to Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: "FTPClient_Fantuber_Windows.zip"
+          append_body: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
