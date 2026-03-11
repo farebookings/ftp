@@ -1,0 +1,90 @@
+name: Build Multi-Platform Executables
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build for ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            artifact_name: FTPClient_Fantuber_macOS
+            asset_name: FTPClient_Fantuber_macOS
+            separator: ":"
+            extension: ""
+          - os: windows-latest
+            artifact_name: FTPClient_Fantuber_Windows.exe
+            asset_name: FTPClient_Fantuber_Windows
+            separator: ";"
+            extension: ".exe"
+          - os: ubuntu-latest
+            artifact_name: FTPClient_Fantuber_Linux
+            asset_name: FTPClient_Fantuber_Linux
+            separator: ":"
+            extension: ""
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          pip install tkinterdnd2
+      
+      - name: Build with PyInstaller
+        run: |
+          pyinstaller --onefile `
+            --windowed `
+            --name "FTPClient_Fantuber${{ matrix.extension }}" `
+            --clean `
+            --add-data "README.md${{ matrix.separator }}." `
+            main.py
+        shell: ${{ matrix.os == 'windows-latest' && 'powershell' || 'bash' }}
+      
+      - name: Prepare package (Unix)
+        if: matrix.os != 'windows-latest'
+        run: |
+          mkdir -p FTPClient_Package
+          cp dist/FTPClient_Fantuber${{ matrix.extension }} FTPClient_Package/
+          cp README.md FTPClient_Package/ 2>/dev/null || echo "No README"
+          cd FTPClient_Package
+          zip -r ../${{ matrix.asset_name }}.zip *
+        shell: bash
+      
+      - name: Prepare package (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          mkdir FTPClient_Package -Force
+          Copy-Item "dist/FTPClient_Fantuber${{ matrix.extension }}" -Destination "FTPClient_Package/"
+          if (Test-Path "README.md") { Copy-Item "README.md" -Destination "FTPClient_Package/" }
+          Compress-Archive -Path "FTPClient_Package/*" -DestinationPath "${{ matrix.asset_name }}.zip" -Force
+        shell: powershell
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: "${{ matrix.asset_name }}.zip"
+      
+      - name: Upload to Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: "${{ matrix.asset_name }}.zip"
+          append_body: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
