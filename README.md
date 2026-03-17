@@ -39,8 +39,8 @@ Aplicación de escritorio para gestión de archivos FTP con interfaz gráfica in
 - **macOS** https://github.com/farebookings/ftp/releases/download/v0.0.2/FTPClient_Fantuber_macOS_v0.0.2.zip
 
 1. Descomprime el archivo
-2. Abre la carpeta `FTPClient_Package`
-3. Haz doble clic en `FTPClient_Fantuber` para ejecutar
+2. Abre la carpeta `FTPClient_Fantuber(version)`
+3. Haz doble clic en `FTPClient_Fantuber(version)` para ejecutar
 
 ### Opción 2: Desde código fuente
 
