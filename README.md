@@ -17,7 +17,7 @@ Aplicación de escritorio para gestión de archivos FTP con interfaz gráfica in
 ## 📦 Descarga
 
 ### Última versión
-[![Download](https://img.shields.io/badge/Download-Última%20versión-brightgreen)](https://github.com/farebookings/ftp/releases/tag/v1.1.0)
+[![Download](https://img.shields.io/badge/Download-Última%20versión-brightgreen)](https://github.com/farebookings/ftp/releases/tag/v0.0.2)
 
 **Instrucciones de descarga:**
 
