@@ -1,0 +1,2 @@
+Loading settings from /home/kmz/Proyectos/python/ftp/settings.ini
+Sections found: ['General']
