@@ -1,2 +1,22 @@
 Loading settings from /home/kmz/Proyectos/python/ftp/settings.ini
 Sections found: ['General']
+Loading settings from /home/kmz/Proyectos/python/ftp/settings.ini
+Sections found: ['General']
+[LOAD] Configuración cargada desde /home/kmz/Proyectos/python/ftp/settings.ini
+[LOAD] Configuración cargada desde /home/kmz/Proyectos/python/ftp/settings.ini
+[LOAD] Configuración cargada desde /home/kmz/Proyectos/python/ftp/settings.ini
+[CONNECT] Host: 74.208.170.169, User: josecarlos_33
+[LOAD] Configuración cargada desde /home/kmz/Proyectos/python/ftp/settings.ini
+[CONNECT] Host: 74.208.170.169, User: josecarlos_33
+[LIST] 1 archivos listados
+[LOAD] Configuración cargada desde /home/kmz/Proyectos/python/ftp/settings.ini
+[LOAD] Configuración cargada desde /home/kmz/Proyectos/python/ftp/settings.ini
+[LOAD] Configuración cargada desde /home/kmz/Proyectos/python/ftp/settings.ini
+[CONNECT] Host: 74.208.170.169, User: josecarlos_33
+[CONNECT] Host: 74.208.170.169, User: josecarlos_33
+[CONNECT] Host: 74.208.170.169, User: josecarlos_33
+[LIST] 1 archivos listados
+[LOAD] Configuración cargada desde /home/kmz/Proyectos/python/ftp/settings.ini
+[CONNECT] Host: 74.208.170.169, User: josecarlos_33
+[LIST] 1 archivos listados
+[LIST] 1 archivos listados
