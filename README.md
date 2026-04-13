@@ -17,7 +17,7 @@ Aplicación de escritorio para gestión de archivos FTP con interfaz gráfica in
 ## 📦 Descarga
 
 ### Última versión
-[![Download](https://img.shields.io/badge/Download-Última%20versión-brightgreen)](https://github.com/farebookings/ftp/releases/tag/v1.1.0)
+[![Download](https://img.shields.io/badge/Download-Última%20versión-brightgreen)](https://github.com/farebookings/ftp/releases/tag/v0.0.2)
 
 **Instrucciones de descarga:**
 
@@ -34,10 +34,13 @@ Aplicación de escritorio para gestión de archivos FTP con interfaz gráfica in
 
 ### Opción 1: Descargar ejecutable (recomendado)
 
-1. Descarga el ZIP desde https://github.com/farebookings/ftp/releases/tag/v1.1.0
-2. Descomprime el archivo
-3. Abre la carpeta `FTPClient_Package`
-4. Haz doble clic en `FTPClient_Fantuber` para ejecutar
+- **Linux** https://github.com/farebookings/ftp/releases/download/v0.0.2/FTPClient_Fantuber_Linux_v0.0.2.zip
+- **Windows** https://github.com/farebookings/ftp/releases/download/v0.0.2/FTPClient_Fantuber_Windows_v0.0.2.zip
+- **macOS** https://github.com/farebookings/ftp/releases/download/v0.0.2/FTPClient_Fantuber_macOS_v0.0.2.zip
+
+1. Descomprime el archivo
+2. Abre la carpeta `FTPClient_Fantuber(version)`
+3. Haz doble clic en `FTPClient_Fantuber(version)` para ejecutar
 
 ### Opción 2: Desde código fuente
 
