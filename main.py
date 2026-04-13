@@ -11,18 +11,199 @@ from tkinterdnd2 import DND_FILES, TkinterDnD
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
+class DraggableFileList:
+    """Widget para lista de archivos con drag & drop para reordenar"""
+    def __init__(self, parent, on_order_changed=None, on_file_removed=None):
+        self.parent = parent
+        self.on_order_changed = on_order_changed
+        self.on_file_removed = on_file_removed  # Nuevo callback para cuando se elimina un archivo
+        self.files = []
+        self.file_frames = []
+        self.drag_start_index = None
+        self.drag_over_index = None
+        self.is_dragging = False
+        
+        # Frame contenedor principal
+        self.container = ctk.CTkFrame(parent, fg_color="transparent")
+        self.container.pack(fill=ctk.BOTH, expand=True)
+        
+        # Scrollable frame
+        self.scroll_frame = ctk.CTkScrollableFrame(self.container, fg_color=("gray90", "gray18"))
+        self.scroll_frame.pack(fill=ctk.BOTH, expand=True)
+        
+        # Canvas interno para los items
+        self.items_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
+        self.items_frame.pack(fill=ctk.BOTH, expand=True)
+        
+    def add_file(self, file_path):
+        """Añadir un archivo a la lista"""
+        self.files.append(file_path)
+        self.refresh_list()
+        
+    def add_files(self, file_paths):
+        """Añadir múltiples archivos a la lista"""
+        self.files.extend(file_paths)
+        self.refresh_list()
+        
+    def remove_file(self, index):
+        """Eliminar un archivo de la lista por índice"""
+        if 0 <= index < len(self.files):
+            del self.files[index]
+            self.refresh_list()
+            # Llamar al callback cuando se elimina un archivo
+            if self.on_file_removed:
+                self.on_file_removed(len(self.files))
+            
+    def clear(self):
+        """Limpiar toda la lista"""
+        self.files.clear()
+        self.refresh_list()
+        if self.on_file_removed:
+            self.on_file_removed(0)
+        
+    def get_files(self):
+        """Obtener la lista de archivos en el orden actual"""
+        return self.files.copy()
+        
+    def get_file_count(self):
+        """Obtener número de archivos"""
+        return len(self.files)
+        
+    def refresh_list(self):
+        """Refrescar la interfaz de la lista"""
+        # Limpiar frames existentes
+        for frame in self.file_frames:
+            try:
+                frame.destroy()
+            except:
+                pass
+        self.file_frames.clear()
+        
+        if not self.files:
+            empty_label = ctk.CTkLabel(self.items_frame, text="No hay archivos en la cola\nArrastra archivos aquí", 
+                                      font=ctk.CTkFont(size=18),
+                                      text_color=("gray", "gray"))
+            empty_label.pack(pady=60)
+            self.file_frames.append(empty_label)
+            return
+            
+        # Crear frames para cada archivo
+        for i, file_path in enumerate(self.files):
+            filename = os.path.basename(file_path)
+            frame = ctk.CTkFrame(self.items_frame, fg_color=("gray85", "gray20"), corner_radius=8)
+            frame.pack(fill=ctk.X, pady=5, padx=5)
+            
+            # Número de orden
+            number_label = ctk.CTkLabel(frame, text=f"{i+1}.", 
+                                       font=ctk.CTkFont(size=20, weight="bold"),
+                                       width=60)
+            number_label.pack(side=tk.LEFT, padx=(15, 5), pady=12)
+            
+            # Icono de arrastre
+            drag_label = ctk.CTkLabel(frame, text="⋮⋮", 
+                                     font=ctk.CTkFont(size=24),
+                                     cursor="fleur",
+                                     width=50)
+            drag_label.pack(side=tk.LEFT, padx=5)
+            
+            # Bindings para el drag label
+            drag_label.bind("<Button-1>", lambda e, idx=i: self.start_drag(e, idx))
+            drag_label.bind("<B1-Motion>", lambda e, idx=i: self.on_drag(e, idx))
+            drag_label.bind("<ButtonRelease-1>", lambda e, idx=i: self.end_drag(e, idx))
+            
+            # Nombre del archivo
+            name_label = ctk.CTkLabel(frame, text=filename, 
+                                     font=ctk.CTkFont(size=16),
+                                     anchor="w")
+            name_label.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=15)
+            
+            # Botón eliminar
+            delete_btn = ctk.CTkButton(frame, text="✕", width=40, height=40,
+                                      fg_color="transparent",
+                                      hover_color=("#e74c3c", "#c0392b"),
+                                      text_color=("gray", "gray"),
+                                      font=ctk.CTkFont(size=20),
+                                      command=lambda idx=i: self.remove_file(idx))
+            delete_btn.pack(side=tk.RIGHT, padx=15)
+            
+            # Guardar referencia
+            frame.file_index = i
+            frame.file_path = file_path
+            frame.drag_label = drag_label
+            self.file_frames.append(frame)
+            
+    def start_drag(self, event, index):
+        """Iniciar el arrastre"""
+        self.drag_start_index = index
+        self.drag_over_index = index
+        self.is_dragging = True
+        if index < len(self.file_frames):
+            self.file_frames[index].configure(fg_color=("gray70", "gray35"))
+        
+    def on_drag(self, event, index):
+        """Durante el arrastre - detectar sobre qué elemento estamos"""
+        if not self.is_dragging or self.drag_start_index is None:
+            return
+            
+        # Obtener la posición del ratón
+        mouse_y = event.y_root
+        
+        # Encontrar sobre qué frame está el ratón
+        for i, frame in enumerate(self.file_frames):
+            if i == self.drag_start_index:
+                continue
+            try:
+                frame_y = frame.winfo_rooty()
+                frame_height = frame.winfo_height()
+                
+                if frame_y <= mouse_y <= frame_y + frame_height:
+                    if i != self.drag_over_index:
+                        self.drag_over_index = i
+                        frame.configure(fg_color=("gray75", "gray28"))
+                        for j, f in enumerate(self.file_frames):
+                            if j != self.drag_over_index and j != self.drag_start_index:
+                                try:
+                                    f.configure(fg_color=("gray85", "gray20"))
+                                except:
+                                    pass
+                    break
+            except:
+                pass
+        
+    def end_drag(self, event, index):
+        """Finalizar el arrastre y reordenar"""
+        if self.is_dragging and self.drag_start_index is not None and self.drag_over_index is not None:
+            if self.drag_start_index != self.drag_over_index:
+                # Mover el elemento
+                file_to_move = self.files.pop(self.drag_start_index)
+                self.files.insert(self.drag_over_index, file_to_move)
+                self.refresh_list()
+                if self.on_order_changed:
+                    self.on_order_changed()
+        
+        # Restaurar estilos
+        for frame in self.file_frames:
+            try:
+                frame.configure(fg_color=("gray85", "gray20"))
+            except:
+                pass
+            
+        self.drag_start_index = None
+        self.drag_over_index = None
+        self.is_dragging = False
+
+
 class FTPClientApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Cliente FTP Fantuber")
-        self.root.geometry("1300x750")
+        self.root.geometry("1200x750")
         self.root.minsize(1000, 600)
 
-        self.upload_queue = []
         self.is_uploading = False
-        self.file_checks = {}
+        self.current_upload_index = 0
+        self.total_uploads = 0
         self.settings_file = self._get_settings_path()
-        self.file_checkboxes = []
         
         self.worker = FTPWorker(self.handle_worker_event)
         
@@ -41,14 +222,6 @@ class FTPClientApp:
         self.main_frame = ctk.CTkFrame(self.root)
         self.main_frame.pack(fill=ctk.BOTH, expand=True, padx=0, pady=0)
 
-        # Header
-        header_frame = ctk.CTkFrame(self.main_frame, fg_color=("#f0f0f0", "#1a1a1a"))
-        header_frame.pack(fill=ctk.X, padx=0, pady=0)
-        
-        header_label = ctk.CTkLabel(header_frame, text="📁 Cliente FTP Fantuber", 
-                                    font=ctk.CTkFont(size=32, weight="bold"))
-        header_label.pack(padx=20, pady=15)
-
         # Separador
         separator = ctk.CTkLabel(self.main_frame, text="", height=2, 
                                  fg_color=("#e0e0e0", "#2a2a2a"))
@@ -56,20 +229,24 @@ class FTPClientApp:
 
         # Content area
         content_frame = ctk.CTkFrame(self.main_frame)
-        content_frame.pack(fill=ctk.BOTH, expand=True, padx=12, pady=12)
+        content_frame.pack(fill=ctk.BOTH, expand=True, padx=15, pady=15)
 
         # Connection Panel
         self._create_connection_panel(content_frame)
 
-        # Left and Right sections
-        sections_frame = ctk.CTkFrame(content_frame)
-        sections_frame.pack(fill=ctk.BOTH, expand=True, pady=(15, 0))
+        # Two column layout para cola y añadir archivos
+        columns_frame = ctk.CTkFrame(content_frame)
+        columns_frame.pack(fill=ctk.BOTH, expand=True, pady=(15, 0))
 
-        # Left: File List
-        self._create_file_list_panel(sections_frame)
+        # Left: Upload Queue (70%)
+        left_frame = ctk.CTkFrame(columns_frame, fg_color=("gray85", "gray20"))
+        left_frame.pack(side=ctk.LEFT, fill=ctk.BOTH, expand=True, padx=(0, 8))
+        self._create_queue_panel(left_frame)
 
-        # Right: Upload Area
-        self._create_upload_panel(sections_frame)
+        # Right: Add Files (30%)
+        right_frame = ctk.CTkFrame(columns_frame, fg_color=("gray85", "gray20"))
+        right_frame.pack(side=ctk.RIGHT, fill=ctk.BOTH, expand=True, padx=(8, 0))
+        self._create_upload_panel(right_frame)
 
         # Status bar at bottom
         self._create_status_bar()
@@ -79,132 +256,144 @@ class FTPClientApp:
         conn_frame.pack(fill=ctk.X, pady=(0, 15))
 
         title_label = ctk.CTkLabel(conn_frame, text="🔌 Conexión", 
-                                   font=ctk.CTkFont(size=16, weight="bold"))
+                                   font=ctk.CTkFont(size=20, weight="bold"))
         title_label.pack(anchor="w", padx=15, pady=(10, 8))
 
         # Input fields grid
         inputs_frame = ctk.CTkFrame(conn_frame, fg_color="transparent")
         inputs_frame.pack(fill=ctk.X, padx=15, pady=(0, 15))
 
-        # Row 1: Host, User, Password, Button
-        ctk.CTkLabel(inputs_frame, text="Servidor:", font=ctk.CTkFont(size=14)).grid(row=0, column=0, sticky="w", padx=5, pady=5)
-        self.host_entry = ctk.CTkEntry(inputs_frame, placeholder_text="ejemplo.com", width=180)
-        self.host_entry.grid(row=0, column=1, sticky="ew", padx=5, pady=5)
+        ctk.CTkLabel(inputs_frame, text="Servidor:", font=ctk.CTkFont(size=18)).grid(row=0, column=0, sticky="w", padx=5, pady=8)
+        self.host_entry = ctk.CTkEntry(inputs_frame, placeholder_text="ejemplo.com", width=200, font=ctk.CTkFont(size=16))
+        self.host_entry.grid(row=0, column=1, sticky="ew", padx=5, pady=8)
 
-        ctk.CTkLabel(inputs_frame, text="Usuario:", font=ctk.CTkFont(size=14)).grid(row=0, column=2, sticky="w", padx=5, pady=5)
-        self.user_entry = ctk.CTkEntry(inputs_frame, placeholder_text="usuario", width=150)
-        self.user_entry.grid(row=0, column=3, sticky="ew", padx=5, pady=5)
+        ctk.CTkLabel(inputs_frame, text="Usuario:", font=ctk.CTkFont(size=18)).grid(row=0, column=2, sticky="w", padx=5, pady=8)
+        self.user_entry = ctk.CTkEntry(inputs_frame, placeholder_text="usuario", width=170, font=ctk.CTkFont(size=16))
+        self.user_entry.grid(row=0, column=3, sticky="ew", padx=5, pady=8)
 
-        ctk.CTkLabel(inputs_frame, text="Contraseña:", font=ctk.CTkFont(size=14)).grid(row=0, column=4, sticky="w", padx=5, pady=5)
-        self.pass_entry = ctk.CTkEntry(inputs_frame, placeholder_text="contraseña", show="*", width=150)
-        self.pass_entry.grid(row=0, column=5, sticky="ew", padx=5, pady=5)
+        ctk.CTkLabel(inputs_frame, text="Contraseña:", font=ctk.CTkFont(size=18)).grid(row=0, column=4, sticky="w", padx=5, pady=8)
+        self.pass_entry = ctk.CTkEntry(inputs_frame, placeholder_text="contraseña", show="*", width=170, font=ctk.CTkFont(size=16))
+        self.pass_entry.grid(row=0, column=5, sticky="ew", padx=5, pady=8)
 
         self.connect_btn = ctk.CTkButton(inputs_frame, text="Conectar", command=self.connect_ftp, 
-                                        font=ctk.CTkFont(size=13, weight="bold"),
-                                        width=110, height=35)
-        self.connect_btn.grid(row=0, column=6, padx=10, pady=5)
+                                        font=ctk.CTkFont(size=15, weight="bold"),
+                                        width=120, height=40)
+        self.connect_btn.grid(row=0, column=6, padx=10, pady=8)
 
         # Status label
         self.status_label = ctk.CTkLabel(conn_frame, text="● Desconectado", 
                                          text_color=("red", "red"),
-                                         font=ctk.CTkFont(size=14))
+                                         font=ctk.CTkFont(size=18))
         self.status_label.pack(anchor="w", padx=15, pady=(0, 10))
 
         inputs_frame.columnconfigure(1, weight=1)
         inputs_frame.columnconfigure(3, weight=1)
         inputs_frame.columnconfigure(5, weight=1)
 
-    def _create_file_list_panel(self, parent):
-        list_frame = ctk.CTkFrame(parent, fg_color=("gray85", "gray20"))
-        list_frame.pack(side=ctk.LEFT, fill=ctk.BOTH, expand=True, padx=(0, 8))
-
+    def _create_queue_panel(self, parent):
         # Title
-        title_label = ctk.CTkLabel(list_frame, text="📋 Archivos en el Servidor", 
-                                   font=ctk.CTkFont(size=14, weight="bold"))
+        title_label = ctk.CTkLabel(parent, text="⏰ Cola de Subida", 
+                                   font=ctk.CTkFont(size=20, weight="bold"))
         title_label.pack(anchor="w", padx=15, pady=(12, 8))
-
-        # Control buttons frame
-        controls_frame = ctk.CTkFrame(list_frame, fg_color="transparent")
-        controls_frame.pack(fill=ctk.X, padx=15, pady=(0, 10))
-
-        self.select_all_var = tk.BooleanVar()
-        select_all_checkbox = ctk.CTkCheckBox(controls_frame, text="Seleccionar Todo",
-                                             variable=self.select_all_var,
-                                             command=self.toggle_select_all,
-                                             font=ctk.CTkFont(size=14))
-        select_all_checkbox.pack(side=ctk.LEFT)
-
-        self.delete_btn = ctk.CTkButton(controls_frame, text="🗑️  Eliminar",
-                                        command=self.delete_selected_files,
-                                        state=ctk.DISABLED,
-                                        fg_color=("#e74c3c", "#c0392b"),
-                                        hover_color=("#c0392b", "#a93226"),
-                                        text_color="white",
-                                        font=ctk.CTkFont(size=14),
-                                        width=100)
-        self.delete_btn.pack(side=ctk.RIGHT)
-
-        # Scrollable frame for file list
-        scroll_frame = ctk.CTkScrollableFrame(list_frame, fg_color="transparent")
-        scroll_frame.pack(fill=ctk.BOTH, expand=True, padx=15, pady=(0, 15))
-
-        self.file_frame = ctk.CTkFrame(scroll_frame, fg_color="transparent")
-        self.file_frame.pack(fill=ctk.BOTH, expand=True)
+        
+        # Info label
+        info_label = ctk.CTkLabel(parent, text="Arrastra los íconos ⋮⋮ para reordenar | Los archivos se subirán en este orden",
+                                 font=ctk.CTkFont(size=14),
+                                 text_color=("gray", "gray"))
+        info_label.pack(anchor="w", padx=15, pady=(0, 10))
+        
+        # Lista ordenable con callback para cuando se eliminan archivos
+        self.queue_list = DraggableFileList(parent, 
+                                           on_order_changed=self.on_queue_order_changed,
+                                           on_file_removed=self.update_queue_count)
+        
+        # Botones de control de cola
+        queue_controls = ctk.CTkFrame(parent, fg_color="transparent")
+        queue_controls.pack(fill=ctk.X, padx=15, pady=(15, 15))
+        
+        self.clear_queue_btn = ctk.CTkButton(queue_controls, text="🗑️ Limpiar Cola",
+                                            command=self.clear_queue,
+                                            fg_color=("gray70", "gray30"),
+                                            hover_color=("#e74c3c", "#c0392b"),
+                                            font=ctk.CTkFont(size=15),
+                                            width=130,
+                                            height=45)
+        self.clear_queue_btn.pack(side=ctk.LEFT, padx=5)
+        
+        self.upload_queue_btn = ctk.CTkButton(queue_controls, text="▶ Subir Todos",
+                                             command=self.start_upload_queue,
+                                             fg_color=("#2ecc71", "#27ae60"),
+                                             hover_color=("#27ae60", "#229954"),
+                                             font=ctk.CTkFont(size=16, weight="bold"),
+                                             height=45,
+                                             width=280)
+        self.upload_queue_btn.pack(side=ctk.RIGHT, padx=5)
 
     def _create_upload_panel(self, parent):
-        upload_frame = ctk.CTkFrame(parent, fg_color=("gray85", "gray20"))
-        upload_frame.pack(side=ctk.RIGHT, fill=ctk.BOTH, expand=True, padx=(8, 0))
-
-        # Title
-        title_label = ctk.CTkLabel(upload_frame, text="⬆️  Subir Archivos", 
-                                   font=ctk.CTkFont(size=14, weight="bold"))
-        title_label.pack(anchor="w", padx=15, pady=(12, 10))
-
-        # Drop Zone - usando Tkinter estándar para compatibilidad con tkinterdnd2
-        inner_frame = ctk.CTkFrame(upload_frame)
-        inner_frame.pack(fill=ctk.BOTH, expand=True, padx=15, pady=(0, 10))
+        # Drop Zone
+        inner_frame = ctk.CTkFrame(parent)
+        inner_frame.pack(fill=ctk.BOTH, expand=True, padx=15, pady=(0, 15))
         
-        drop_frame = tk.Frame(inner_frame, bg="#4a9eff", relief=tk.RAISED, bd=2)
+        drop_frame = tk.Frame(inner_frame, bg="#00397A")
         drop_frame.pack(fill=tk.BOTH, expand=True)
         drop_frame.drop_target_register(DND_FILES)
         drop_frame.dnd_bind('<<Drop>>', self.on_drop)
         
         drop_label = tk.Label(drop_frame, text="📥 Arrastra y suelta\narchivos aquí", 
                               font=("Segoe UI", 16, "bold"),
-                              bg="#4a9eff", fg="white")
+                              bg="#00397A", fg="white")
         drop_label.pack(expand=True)
         drop_label.drop_target_register(DND_FILES)
         drop_label.dnd_bind('<<Drop>>', self.on_drop)
 
         # Select Button
-        self.select_files_btn = ctk.CTkButton(upload_frame, text="📂 Seleccionar Archivos...", 
+        self.select_files_btn = ctk.CTkButton(parent, text="📂 Seleccionar Archivos...", 
                                              command=self.open_file_dialog,
-                                             font=ctk.CTkFont(size=14),
-                                             height=35)
-        self.select_files_btn.pack(fill=ctk.X, padx=15, pady=(0, 10))
+                                             font=ctk.CTkFont(size=16),
+                                             height=50)
+        self.select_files_btn.pack(fill=ctk.X, padx=15, pady=(0, 20))
 
         # Progress Bar
-        progress_label = ctk.CTkLabel(upload_frame, text="Progreso de Subida:", 
-                                     font=ctk.CTkFont(size=14))
-        progress_label.pack(anchor="w", padx=15, pady=(5, 0))
+        progress_label = ctk.CTkLabel(parent, text="📊 Progreso de Subida:", 
+                                     font=ctk.CTkFont(size=16))
+        progress_label.pack(anchor="w", padx=15, pady=(10, 5))
 
         self.progress_var = tk.DoubleVar(value=0)
-        self.progress_bar = ctk.CTkProgressBar(upload_frame, variable=self.progress_var)
-        self.progress_bar.pack(fill=ctk.X, padx=15, pady=(3, 5))
+        self.progress_bar = ctk.CTkProgressBar(parent, variable=self.progress_var, height=15)
+        self.progress_bar.pack(fill=ctk.X, padx=15, pady=(5, 5))
 
-        # Progress percentage
-        self.progress_label = ctk.CTkLabel(upload_frame, text="0%", 
-                                          font=ctk.CTkFont(size=11))
-        self.progress_label.pack(anchor="e", padx=15, pady=(0, 15))
+        # Progress percentage and info
+        self.progress_label = ctk.CTkLabel(parent, text="0%", 
+                                          font=ctk.CTkFont(size=15))
+        self.progress_label.pack(anchor="e", padx=15)
+        
+        self.current_file_label = ctk.CTkLabel(parent, text="", 
+                                              font=ctk.CTkFont(size=14),
+                                              text_color=("gray", "gray"))
+        self.current_file_label.pack(anchor="w", padx=15, pady=(10, 15))
 
     def _create_status_bar(self):
-        status_frame = ctk.CTkFrame(self.main_frame, fg_color=("#f0f0f0", "#1a1a1a"), height=40)
+        status_frame = ctk.CTkFrame(self.main_frame, fg_color=("#f0f0f0", "#1a1a1a"), height=50)
         status_frame.pack(side=ctk.BOTTOM, fill=ctk.X, padx=0, pady=0)
 
-        self.status_bar_label = ctk.CTkLabel(status_frame, text="Listo", 
-                                            font=ctk.CTkFont(size=12),
+        self.status_bar_label = ctk.CTkLabel(status_frame, text="✅ Listo", 
+                                            font=ctk.CTkFont(size=15),
                                             text_color=("gray", "gray"))
-        self.status_bar_label.pack(anchor="w", padx=15, pady=8)
+        self.status_bar_label.pack(anchor="w", padx=15, pady=12)
+
+    def update_queue_count(self, count):
+        """Actualizar el contador de archivos en la cola en la barra de estado"""
+        if count == 0:
+            self.status_bar_label.configure(text="✅ Cola vacía")
+        elif count == 1:
+            self.status_bar_label.configure(text=f"📎 1 archivo en cola")
+        else:
+            self.status_bar_label.configure(text=f"📎 {count} archivos en cola")
+
+    def on_queue_order_changed(self):
+        """Callback cuando se reordena la cola"""
+        count = self.queue_list.get_file_count()
+        self.status_bar_label.configure(text=f"📌 Orden modificado - {count} archivos en cola")
 
     def handle_worker_event(self, event_type, data):
         self.root.after(0, lambda: self._process_event(event_type, data))
@@ -212,58 +401,77 @@ class FTPClientApp:
     def _process_event(self, event_type, data):
         if event_type == "connected":
             self.status_label.configure(text="● Conectado", text_color=("green", "green"))
-            self.status_bar_label.configure(text=f"✓ Conectado: {data}")
-            self.connect_btn.configure(text="Desconectar")
-            self.connect_btn.configure(state=ctk.NORMAL)
-            self.delete_btn.configure(state=ctk.NORMAL)
+            self.status_bar_label.configure(text=f"✅ Conectado: {data}")
+            self.connect_btn.configure(text="Desconectar", state=ctk.NORMAL)
         elif event_type == "disconnected":
             self.status_label.configure(text="● Desconectado", text_color=("red", "red"))
-            self.status_bar_label.configure(text="Desconectado del servidor")
+            self.status_bar_label.configure(text="❌ Desconectado del servidor")
             self.connect_btn.configure(text="Conectar", state=ctk.NORMAL)
-            self.delete_btn.configure(state=ctk.DISABLED)
-            self.file_frame.pack_forget()
-            self.file_frame = ctk.CTkFrame(self.file_frame.master, fg_color="transparent")
-            self.file_checkboxes = []
         elif event_type == "connection_error":
             self.status_label.configure(text="● Error", text_color=("red", "red"))
-            self.status_bar_label.configure(text=f"Error de conexión: {data}")
+            self.status_bar_label.configure(text=f"⚠️ Error de conexión: {data}")
             self.connect_btn.configure(text="Conectar", state=ctk.NORMAL)
             messagebox.showerror("Error de Conexión", data)
-        elif event_type == "file_list":
-            self.update_file_list(data)
+        elif event_type == "reconnecting":
+            # Nuevo: Mostrar estado de reconexión
+            self.status_bar_label.configure(text=f"🔄 {data}")
+            self.status_label.configure(text="● Reconectando...", text_color=("orange", "orange"))
+            self.connect_btn.configure(state=ctk.DISABLED)
+        elif event_type == "retrying":
+            # Nuevo: Mostrar reintento de subida
+            self.status_bar_label.configure(text=f"🔄 {data}")
         elif event_type == "upload_progress":
-            self.progress_var.set(data / 100)
-            self.progress_label.configure(text=f"{int(data)}%")
+            if isinstance(data, dict):
+                progress = data.get("progress", 0)
+                current = data.get("index", 0)
+                total = data.get("total", 0)
+                filename = data.get("filename", "")
+                
+                self.progress_var.set(progress / 100)
+                self.progress_label.configure(text=f"{int(progress)}%")
+                self.current_file_label.configure(text=f"📤 Subiendo ({current+1}/{total}): {filename}")
         elif event_type == "upload_finished":
-            self.status_bar_label.configure(text=f"✓ Subida completada: {data}")
-            self.is_uploading = False
-            # Refrescar la lista de archivos después de la subida
-            self.worker.list_files()
-            if not self.upload_queue:
-                self.progress_var.set(0)
-                self.progress_label.configure(text="0%")
-                messagebox.showinfo("Éxito", "Todos los archivos se han subido correctamente.")
-            else:
-                self.process_queue()
-        elif event_type == "delete_finished":
-            self.status_bar_label.configure(text=f"✓ Archivo eliminado: {data}")
-            # Refrescar la lista de archivos después de la eliminación
-            self.worker.list_files()
-        elif event_type == "error":
-            self.status_bar_label.configure(text=f"✗ Error: {data}")
-            self.is_uploading = False
-            if self.upload_queue:
-                if messagebox.askyesno("Error en cola", f"Ocurrió un error:\n{data}\n\n¿Desea continuar con el resto?"):
-                    self.process_queue()
+            if isinstance(data, dict):
+                filename = data.get("filename", "")
+                current_index = data.get("index", 0)
+                total = data.get("total", 0)
+                
+                self.status_bar_label.configure(text=f"✅ Subida completada: {filename} ({current_index+1}/{total})")
+                
+                self.current_upload_index += 1
+                
+                if self.current_upload_index < self.total_uploads:
+                    self.upload_next_in_queue()
                 else:
-                    self.upload_queue.clear()
+                    self.is_uploading = False
                     self.progress_var.set(0)
                     self.progress_label.configure(text="0%")
+                    self.current_file_label.configure(text="")
+                    self.status_bar_label.configure(text="✅ Todas las subidas completadas")
+                    messagebox.showinfo("Éxito", "Todos los archivos se han subido correctamente en el orden establecido.")
+                    self.queue_list.clear()
+        elif event_type == "error":
+            self.status_bar_label.configure(text=f"❌ Error: {data}")
+            # No desactivar is_uploading inmediatamente, permitir reconexión automática
+            if "Connection lost" in str(data) and self.is_uploading:
+                self.status_bar_label.configure(text=f"⚠️ {data} - Reconectando...")
             else:
-                if "Delete failed" not in str(data):
+                self.is_uploading = False
+                if "Upload failed" in str(data):
+                    if messagebox.askyesno("Error en subida", f"{data}\n\n¿Desea continuar con el siguiente archivo?"):
+                        self.current_upload_index += 1
+                        if self.current_upload_index < self.total_uploads:
+                            self.upload_next_in_queue()
+                    else:
+                        self.is_uploading = False
+                        self.progress_var.set(0)
+                        self.progress_label.configure(text="0%")
+                        self.current_file_label.configure(text="")
+                else:
                     messagebox.showerror("Error", data)
 
     def connect_ftp(self):
+        """Método para conectar o desconectar del servidor FTP"""
         if self.connect_btn.cget("text") == "Desconectar":
             self.status_label.configure(text="● Desconectando...", text_color=("orange", "orange"))
             self.connect_btn.configure(state=ctk.DISABLED)
@@ -281,49 +489,11 @@ class FTPClientApp:
             messagebox.showwarning("Campos vacíos", "Por favor complete todos los campos")
             return
 
-        try:
-            with open("debug_log.txt", "a") as f:
-                f.write(f"[CONNECT] Host: {host}, User: {user}\n")
-        except:
-            pass
-
         self.save_settings()
         self.connect_btn.configure(state=ctk.DISABLED)
         self.status_label.configure(text="● Conectando...", text_color=("orange", "orange"))
-        self.status_bar_label.configure(text="Conectando al servidor...")
+        self.status_bar_label.configure(text="🔄 Conectando al servidor...")
         self.worker.connect_to_server(host, user, pwd)
-
-    def update_file_list(self, files):
-        # Clear existing checkboxes
-        for widget in self.file_frame.winfo_children():
-            widget.destroy()
-        self.file_checkboxes = []
-        self.select_all_var.set(False)
-
-        if not files:
-            empty_label = ctk.CTkLabel(self.file_frame, text="No hay archivos en el servidor",
-                                      font=ctk.CTkFont(size=13),
-                                      text_color=("gray", "gray"))
-            empty_label.pack(pady=20)
-            return
-
-        for filename in files:
-            var = tk.BooleanVar()
-            checkbox = ctk.CTkCheckBox(self.file_frame, text=filename, variable=var,
-                                       font=ctk.CTkFont(size=11))
-            checkbox.pack(anchor="w", pady=3, padx=5)
-            self.file_checkboxes.append((checkbox, var, filename))
-
-        try:
-            with open("debug_log.txt", "a") as f:
-                f.write(f"[LIST] {len(files)} archivos listados\n")
-        except:
-            pass
-
-    def toggle_select_all(self):
-        state = self.select_all_var.get()
-        for _, var, _ in self.file_checkboxes:
-            var.set(state)
 
     def open_file_dialog(self):
         if self.connect_btn.cget("text") != "Desconectar":
@@ -334,49 +504,87 @@ class FTPClientApp:
         if files:
             self.add_to_queue(list(files))
 
-    def delete_selected_files(self):
-        files_to_delete = [filename for _, var, filename in self.file_checkboxes if var.get()]
-        
-        if not files_to_delete:
-            messagebox.showinfo("Info", "No hay archivos seleccionados para eliminar")
-            return
-
-        if messagebox.askyesno("Confirmar", f"¿Estás seguro de eliminar {len(files_to_delete)} archivo(s)?"):
-            self.status_bar_label.configure(text=f"Eliminando {len(files_to_delete)} archivo(s)...")
-            for f in files_to_delete:
-                self.worker.delete_file(f)
-
     def on_drop(self, event):
         if self.connect_btn.cget("text") != "Desconectar":
             messagebox.showwarning("No conectado", "Primero debes conectarte al servidor FTP.")
             return
         
-        # Procesar los archivos arrastrados
-        files = self.root.tk.splitlist(event.data)
-        # Filtrar solo archivos válidos (no directorios)
-        valid_files = [f.replace('{', '').replace('}', '') for f in files if os.path.isfile(f.replace('{', '').replace('}', ''))]
-        
-        if valid_files:
-            self.add_to_queue(valid_files)
-        else:
-            messagebox.showwarning("Archivos inválidos", "Por favor arrastra solo archivos, no directorios.")
+        try:
+            files = self.root.tk.splitlist(event.data)
+            valid_files = [f.replace('{', '').replace('}', '') for f in files if os.path.isfile(f.replace('{', '').replace('}', ''))]
+            
+            if valid_files:
+                self.add_to_queue(valid_files)
+            else:
+                messagebox.showwarning("Archivos inválidos", "Por favor arrastra solo archivos, no directorios.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al procesar archivos: {e}")
 
     def add_to_queue(self, files):
-        self.upload_queue.extend(files)
-        self.status_bar_label.configure(text=f"Añadidos {len(files)} archivo(s). Total en cola: {len(self.upload_queue)}")
-        self.process_queue()
-
-    def process_queue(self):
-        if self.is_uploading or not self.upload_queue:
-            return
+        """Añadir archivos a la cola (se añaden al final)"""
+        for file_path in files:
+            if file_path not in self.queue_list.get_files():
+                self.queue_list.add_file(file_path)
         
-        file_path = self.upload_queue.pop(0)
-        self.is_uploading = True
+        count = self.queue_list.get_file_count()
+        self.update_queue_count(count)
+        
+        if count > 1:
+            self.status_bar_label.configure(text=f"📎 {count} archivos en cola. Arrastra los íconos ⋮⋮ para reordenar.")
+
+    def clear_queue(self):
+        """Limpiar toda la cola"""
+        if self.queue_list.get_file_count() > 0:
+            if messagebox.askyesno("Limpiar Cola", "¿Estás seguro de que quieres limpiar toda la cola de subida?"):
+                self.queue_list.clear()
+                self.status_bar_label.configure(text="🗑️ Cola limpiada")
+
+    def start_upload_queue(self):
+        """Iniciar la subida de todos los archivos en la cola respetando el orden"""
+        files = self.queue_list.get_files()
+        
+        if not files:
+            messagebox.showinfo("Cola vacía", "No hay archivos en la cola para subir.")
+            return
+            
+        if self.connect_btn.cget("text") != "Desconectar":
+            messagebox.showwarning("No conectado", "Primero debes conectarte al servidor FTP.")
+            return
+            
+        if self.is_uploading:
+            messagebox.showinfo("Subida en progreso", "Ya hay una subida en curso. Espera a que termine.")
+            return
+            
+        total = len(files)
+        preview = "\n".join([f"{i+1}. {os.path.basename(f)}" for i, f in enumerate(files[:15])])
+        if total > 15:
+            preview += f"\n... y {total-15} más"
+            
+        if messagebox.askyesno("Confirmar Subida", 
+                               f"📤 Se subirán {total} archivo(s) en el siguiente orden:\n\n{preview}\n\n¿Deseas continuar?"):
+            
+            self.is_uploading = True
+            self.current_upload_index = 0
+            self.total_uploads = total
+            self.upload_next_in_queue()
+    
+    def upload_next_in_queue(self):
+        """Subir el siguiente archivo en la cola"""
+        files = self.queue_list.get_files()
+        
+        if self.current_upload_index >= len(files):
+            self.is_uploading = False
+            return
+            
+        file_path = files[self.current_upload_index]
+        filename = os.path.basename(file_path)
+        
+        self.status_bar_label.configure(text=f"📤 Subiendo ({self.current_upload_index+1}/{self.total_uploads}): {filename}")
         self.progress_var.set(0)
         self.progress_label.configure(text="0%")
-        filename = os.path.basename(file_path)
-        self.status_bar_label.configure(text=f"Subiendo: {filename} (En cola: {len(self.upload_queue)})")
-        self.worker.upload_file(file_path)
+        self.current_file_label.configure(text=f"📤 Subiendo ({self.current_upload_index+1}/{self.total_uploads}): {filename}")
+        
+        self.worker.upload_file(file_path, self.current_upload_index, self.total_uploads)
 
     def load_settings(self):
         config = configparser.ConfigParser(interpolation=None)
@@ -389,15 +597,8 @@ class FTPClientApp:
                     self.host_entry.insert(0, config[section].get("host", ""))
                     self.user_entry.insert(0, config[section].get("user", ""))
                     self.pass_entry.insert(0, config[section].get("password", ""))
-
-                with open("debug_log.txt", "a") as f:
-                    f.write(f"[LOAD] Configuración cargada desde {self.settings_file}\n")
             except Exception as e:
-                try:
-                    with open("debug_log.txt", "a") as f:
-                        f.write(f"[ERROR] Al cargar configuración: {e}\n")
-                except:
-                    pass
+                pass
 
     def save_settings(self):
         config = configparser.ConfigParser(interpolation=None)
@@ -411,6 +612,7 @@ class FTPClientApp:
                 config.write(f)
         except Exception as e:
             print(f"Error guardando configuración: {e}")
+
 
 if __name__ == "__main__":
     root = TkinterDnD.Tk()
