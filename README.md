@@ -13,11 +13,12 @@ Aplicación de escritorio para gestión de archivos FTP con interfaz gráfica in
 - ✅ **Barra de progreso** - Visualiza el progreso de subida
 - ✅ **Auto-guardado** - Guarda automáticamente la configuración
 - ✅ **Interfaz moderna** - Diseño limpio y profesional
+- ✅ **Lista ordenada de subida** - Posibilidad de ajustar el orden de subida
 
 ## 📦 Descarga
 
 ### Última versión
-[![Download](https://img.shields.io/badge/Download-Última%20versión-brightgreen)](https://github.com/farebookings/ftp/releases/tag/v0.0.2)
+[![Download](https://img.shields.io/badge/Download-Última%20versión-brightgreen)](https://github.com/farebookings/ftp/releases/tag/v0.0.3)
 
 **Instrucciones de descarga:**
 
@@ -34,9 +35,9 @@ Aplicación de escritorio para gestión de archivos FTP con interfaz gráfica in
 
 ### Opción 1: Descargar ejecutable (recomendado)
 
-- **Linux** https://github.com/farebookings/ftp/releases/download/v0.0.2/FTPClient_Fantuber_Linux_v0.0.2.zip
-- **Windows** https://github.com/farebookings/ftp/releases/download/v0.0.2/FTPClient_Fantuber_Windows_v0.0.2.zip
-- **macOS** https://github.com/farebookings/ftp/releases/download/v0.0.2/FTPClient_Fantuber_macOS_v0.0.2.zip
+- **Linux** https://github.com/farebookings/ftp/releases/download/v0.0.3/FTPClient_Fantuber_Linux.zip
+- **Windows** https://github.com/farebookings/ftp/releases/download/v0.0.3/FTPClient_Fantuber_Windows.zip
+- **macOS** https://github.com/farebookings/ftp/releases/download/v0.0.3/FTPClient_Fantuber_macOS.zip
 
 1. Descomprime el archivo
 2. Abre la carpeta `FTPClient_Fantuber(version)`
