@@ -413,23 +413,38 @@ class FTPClientApp:
             self.connect_btn.configure(text="Conectar", state=ctk.NORMAL)
             messagebox.showerror("Error de Conexión", data)
         elif event_type == "reconnecting":
-            # Nuevo: Mostrar estado de reconexión
             self.status_bar_label.configure(text=f"🔄 {data}")
             self.status_label.configure(text="● Reconectando...", text_color=("orange", "orange"))
             self.connect_btn.configure(state=ctk.DISABLED)
         elif event_type == "retrying":
-            # Nuevo: Mostrar reintento de subida
             self.status_bar_label.configure(text=f"🔄 {data}")
+        elif event_type == "upload_started":
+            # Nuevo evento: inicio de subida
+            if isinstance(data, dict):
+                filename = data.get("filename", "")
+                size = data.get("size_formatted", "")
+                current = data.get("index", 0) + 1
+                total = data.get("total", 0)
+                self.status_bar_label.configure(text=f"📤 Iniciando subida: {filename} ({size})")
+                self.current_file_label.configure(text=f"📤 Subiendo ({current}/{total}): {filename} - {size}")
         elif event_type == "upload_progress":
             if isinstance(data, dict):
                 progress = data.get("progress", 0)
                 current = data.get("index", 0)
                 total = data.get("total", 0)
                 filename = data.get("filename", "")
+                uploaded = data.get("uploaded", "")
+                total_size = data.get("total_size", "")
+                speed = data.get("speed", "")
+                status = data.get("status", "")
                 
                 self.progress_var.set(progress / 100)
                 self.progress_label.configure(text=f"{int(progress)}%")
-                self.current_file_label.configure(text=f"📤 Subiendo ({current+1}/{total}): {filename}")
+                
+                if status == "resuming":
+                    self.current_file_label.configure(text=f"🔄 Reanudando ({current+1}/{total}): {filename} - {uploaded}/{total_size}")
+                else:
+                    self.current_file_label.configure(text=f"📤 Subiendo ({current+1}/{total}): {filename} - {uploaded}/{total_size} - {speed}")
         elif event_type == "upload_finished":
             if isinstance(data, dict):
                 filename = data.get("filename", "")
@@ -456,19 +471,24 @@ class FTPClientApp:
             if "Connection lost" in str(data) and self.is_uploading:
                 self.status_bar_label.configure(text=f"⚠️ {data} - Reconectando...")
             else:
-                self.is_uploading = False
-                if "Upload failed" in str(data):
-                    if messagebox.askyesno("Error en subida", f"{data}\n\n¿Desea continuar con el siguiente archivo?"):
-                        self.current_upload_index += 1
-                        if self.current_upload_index < self.total_uploads:
-                            self.upload_next_in_queue()
-                    else:
-                        self.is_uploading = False
-                        self.progress_var.set(0)
-                        self.progress_label.configure(text="0%")
-                        self.current_file_label.configure(text="")
-                else:
-                    messagebox.showerror("Error", data)
+                # No mostrar diálogo de error automáticamente si es parte del reintento
+                if not self.is_uploading or "reintentos" in str(data):
+                    self.is_uploading = False
+                    if "Upload failed" in str(data):
+                        if messagebox.askyesno("Error en subida", f"{data}\n\n¿Desea continuar con el siguiente archivo?"):
+                            self.current_upload_index += 1
+                            if self.current_upload_index < self.total_uploads:
+                                self.upload_next_in_queue()
+                        else:
+                            self.is_uploading = False
+                            self.progress_var.set(0)
+                            self.progress_label.configure(text="0%")
+                            self.current_file_label.configure(text="")
+                    elif "No se pudo reconectar" not in str(data):
+                        messagebox.showerror("Error", data)
+        elif event_type == "file_list":
+            # Por si necesitas mostrar la lista de archivos del servidor
+            pass
 
     def connect_ftp(self):
         """Método para conectar o desconectar del servidor FTP"""

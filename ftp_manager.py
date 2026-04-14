@@ -21,7 +21,7 @@ class FTPWorker:
         self.is_running = True
         self.ftp = None
         self.is_connected = False
-        self.is_connecting = False  # Nuevo: evitar reconexiones múltiples
+        self.is_connecting = False
         
         # Credentials
         self.host = None
@@ -29,9 +29,12 @@ class FTPWorker:
         self.password = None
         
         # Timeout settings
-        self.timeout = 30
+        self.timeout = 60  # Aumentado a 60 segundos
         self.reconnect_attempts = 0
         self.max_reconnect_attempts = 3
+        
+        # Configuración de reintentos por archivo
+        self.max_retries_per_file = 3
         
         # Iniciar el worker thread
         self.worker_thread = threading.Thread(target=self._process_queue, daemon=True)
@@ -58,7 +61,7 @@ class FTPWorker:
         """Reconectar al servidor FTP"""
         if self.is_connecting:
             # Esperar a que termine la reconexión actual
-            for _ in range(30):  # Esperar hasta 3 segundos
+            for _ in range(30):
                 if not self.is_connecting:
                     break
                 time.sleep(0.1)
@@ -93,6 +96,131 @@ class FTPWorker:
             return False
         finally:
             self.is_connecting = False
+
+    def _get_remote_file_size(self, filename):
+        """Obtener el tamaño de un archivo remoto"""
+        try:
+            # Intentar obtener el tamaño usando SIZE
+            size = self.ftp.size(filename)
+            return size if size is not None else 0
+        except:
+            return 0
+
+    def _upload_with_resume(self, file_path, filename, index, total, retry_count=0):
+        """Subir archivo con soporte para reanudación"""
+        try:
+            file_size = os.path.getsize(file_path)
+            remote_size = self._get_remote_file_size(filename)
+            
+            # Determinar desde dónde reanudar
+            resume_position = 0
+            if remote_size > 0 and remote_size < file_size:
+                resume_position = remote_size
+                self._emit("upload_progress", {
+                    "progress": int((resume_position / file_size) * 100),
+                    "index": index,
+                    "total": total,
+                    "filename": filename,
+                    "status": "resuming"
+                })
+                self._emit("retrying", f"Reanudando subida de {filename} desde {self._format_size(resume_position)}")
+            
+            with open(file_path, 'rb') as f:
+                # Saltar a la posición donde se quedó
+                if resume_position > 0:
+                    f.seek(resume_position)
+                
+                bytes_sent = resume_position
+                last_update = time.time()
+                last_activity = time.time()
+                stalled_count = 0
+                
+                def callback(data):
+                    nonlocal bytes_sent, last_update, last_activity, stalled_count
+                    bytes_sent += len(data)
+                    last_activity = time.time()
+                    stalled_count = 0  # Resetear contador de estancamiento
+                    
+                    now = time.time()
+                    if now - last_update >= 0.5:  # Actualizar cada 500ms
+                        progress = int((bytes_sent / file_size) * 100)
+                        self._emit("upload_progress", {
+                            "progress": progress,
+                            "index": index,
+                            "total": total,
+                            "filename": filename,
+                            "uploaded": self._format_size(bytes_sent),
+                            "total_size": self._format_size(file_size),
+                            "speed": self._calculate_speed(bytes_sent - resume_position, now - last_update) if bytes_sent > resume_position else "0 KB/s"
+                        })
+                        last_update = now
+                
+                # Usar un timeout más largo para archivos grandes
+                if resume_position > 0:
+                    # Usar REST para reanudar la transferencia
+                    self.ftp.voidcmd(f"REST {resume_position}")
+                
+                # Iniciar la transferencia con callback de monitoreo
+                self.ftp.storbinary(f'STOR {filename}', f, 8192, callback)
+            
+            # Transferencia completada exitosamente
+            self._emit("upload_finished", {
+                "filename": filename,
+                "index": index,
+                "total": total
+            })
+            
+            # Refrescar lista
+            self._do_list()
+            return True
+            
+        except (socket.timeout, socket.error, error_temp, ConnectionError) as e:
+            # Error de conexión - intentar reanudar
+            error_msg = str(e)
+            self.is_connected = False
+            
+            if retry_count < self.max_retries_per_file:
+                self._emit("reconnecting", f"Error en transferencia, reintentando ({retry_count + 1}/{self.max_retries_per_file})...")
+                time.sleep(2)  # Esperar antes de reintentar
+                
+                # Intentar reconectar
+                if self._ensure_connection():
+                    self._emit("retrying", f"Reanudando {filename}...")
+                    # Reintentar con resume
+                    return self._upload_with_resume(file_path, filename, index, total, retry_count + 1)
+                else:
+                    self._emit("error", f"No se pudo reconectar para reanudar {filename}")
+                    return False
+            else:
+                self._emit("error", f"Error después de {self.max_retries_per_file} reintentos: {error_msg}")
+                return False
+                
+        except Exception as e:
+            self._emit("error", f"Error en transferencia: {str(e)}")
+            return False
+
+    def _format_size(self, size_bytes):
+        """Formatear tamaño de archivo para mostrar"""
+        if size_bytes < 1024:
+            return f"{size_bytes} B"
+        elif size_bytes < 1024 * 1024:
+            return f"{size_bytes / 1024:.1f} KB"
+        elif size_bytes < 1024 * 1024 * 1024:
+            return f"{size_bytes / (1024 * 1024):.1f} MB"
+        else:
+            return f"{size_bytes / (1024 * 1024 * 1024):.2f} GB"
+
+    def _calculate_speed(self, bytes_transferred, elapsed_time):
+        """Calcular velocidad de transferencia"""
+        if elapsed_time <= 0:
+            return "0 KB/s"
+        speed = bytes_transferred / elapsed_time  # bytes por segundo
+        if speed < 1024:
+            return f"{speed:.0f} B/s"
+        elif speed < 1024 * 1024:
+            return f"{speed / 1024:.1f} KB/s"
+        else:
+            return f"{speed / (1024 * 1024):.1f} MB/s"
 
     def _process_queue(self):
         """Procesar comandos FTP en orden (un solo hilo)"""
@@ -166,83 +294,40 @@ class FTPWorker:
         
         try:
             files = self.ftp.nlst()
-            # Filtrar directorios (simple)
-            valid_files = []
-            for f in files:
-                if not self._is_directory_safe(f):
-                    valid_files.append(f)
-            self._emit("file_list", valid_files)
+            self._emit("file_list", files)
         except (error_perm, error_temp, error_reply, socket.error) as e:
-            # Error de conexión, marcar como desconectado
             self.is_connected = False
             self._emit("error", f"List failed: Connection lost - {str(e)}")
         except Exception as e:
             self._emit("error", f"List failed: {str(e)}")
 
     def _do_upload(self, params):
-        """Ejecutar subida de archivo con reconexión automática"""
+        """Ejecutar subida de archivo con reanudación automática"""
         file_path, index, total = params
         
-        # Intentar reconectar si es necesario
-        if not self._ensure_connection():
-            self._emit("error", f"Upload failed: Not connected")
+        if not os.path.exists(file_path):
+            self._emit("error", f"File not found: {file_path}")
             return
         
-        try:
-            filename = os.path.basename(file_path)
-            
-            if not os.path.exists(file_path):
-                raise Exception(f"File not found: {file_path}")
-            
-            file_size = os.path.getsize(file_path)
-            
-            with open(file_path, 'rb') as f:
-                bytes_sent = 0
-                last_update = time.time()
-                
-                def callback(data):
-                    nonlocal bytes_sent, last_update
-                    bytes_sent += len(data)
-                    now = time.time()
-                    if now - last_update >= 0.1:  # Actualizar cada 100ms
-                        progress = int((bytes_sent / file_size) * 100)
-                        self._emit("upload_progress", {
-                            "progress": progress,
-                            "index": index,
-                            "total": total,
-                            "filename": filename
-                        })
-                        last_update = now
-                
-                self.ftp.storbinary(f'STOR {filename}', f, 8192, callback)
-            
-            self._emit("upload_finished", {
-                "filename": filename,
-                "index": index,
-                "total": total
-            })
-            
-            # Refrescar lista
-            self._do_list()
-            
-        except (error_perm, error_temp, error_reply, socket.error) as e:
-            # Error de conexión, marcar como desconectado
-            self.is_connected = False
-            
-            # Intentar reconectar una vez más
-            self._emit("reconnecting", f"Connection lost during upload, attempting to reconnect...")
-            if self._ensure_connection():
-                # Reintentar la subida
-                self._emit("retrying", f"Retrying upload for {os.path.basename(file_path)}")
-                self._do_upload(params)  # Reintentar recursivamente
-            else:
-                self._emit("error", f"Upload failed for {os.path.basename(file_path)}: Connection lost and reconnection failed")
-        except Exception as e:
-            self._emit("error", f"Upload failed for {os.path.basename(file_path)}: {str(e)}")
+        filename = os.path.basename(file_path)
+        file_size = os.path.getsize(file_path)
+        
+        self._emit("upload_started", {
+            "filename": filename,
+            "index": index,
+            "total": total,
+            "size": file_size,
+            "size_formatted": self._format_size(file_size)
+        })
+        
+        # Usar el método con soporte para reanudación
+        success = self._upload_with_resume(file_path, filename, index, total)
+        
+        if not success:
+            self._emit("error", f"Upload failed for {filename} after multiple attempts")
 
     def _do_delete(self, filename):
         """Ejecutar eliminación de archivo"""
-        # Intentar reconectar si es necesario
         if not self._ensure_connection():
             self._emit("error", f"Delete failed: Not connected")
             return
@@ -250,7 +335,7 @@ class FTPWorker:
         try:
             self.ftp.delete(filename)
             self._emit("delete_finished", filename)
-            self._do_list()  # Refrescar lista
+            self._do_list()
         except (error_perm, error_temp, error_reply, socket.error) as e:
             self.is_connected = False
             self._emit("error", f"Delete failed for {filename}: Connection lost")
@@ -281,16 +366,6 @@ class FTPWorker:
             return True
         except:
             self.is_connected = False
-            return False
-
-    def _is_directory_safe(self, path):
-        """Verificar si es directorio sin cambiar directorio actual"""
-        try:
-            # Intentar obtener información del archivo
-            # Si no hay excepción, probablemente es un archivo
-            # Esto es más seguro que cambiar de directorio
-            return False  # Por ahora asumimos que no es directorio
-        except:
             return False
 
     # Métodos públicos (agregan comandos a la cola)
